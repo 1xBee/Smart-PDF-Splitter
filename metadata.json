@@ -1,0 +1,5 @@
+{
+  "name": "Smart PDF Splitter",
+  "description": "Automated AI-powered tool to analyze, split, and organize bulk PDF scanned deliveries using Google Gemini Vision.",
+  "requestFramePermissions": []
+}
