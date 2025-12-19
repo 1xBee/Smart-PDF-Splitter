@@ -1,5 +1,6 @@
 export type OutputMode = 'flatten' | 'by_original' | 'by_date';
 export type ModelType = 'flash' | 'pro';
+export type VerificationStatus = 'verified' | 'mismatch' | 'not_found' | 'unknown';
 
 export interface AppSettings {
   outputMode: OutputMode;
@@ -9,20 +10,48 @@ export interface AppSettings {
   modelType: ModelType;
 }
 
-export interface DocumentSegment {
-  startPage: number; // 1-based index
-  endPage: number;   // 1-based index
-  deliveryId: string;
-  customerName: string;
-  customerId?: string; // Added customer ID specific field
-  deliveryDate: string;
-  confidence: number;
-  needsReview?: boolean; // AI flag for uncertainty
-  reviewReason?: string; // AI explanation for uncertainty
-  finalFilename?: string; // The filename after any manual review or conflict resolution
+/**
+ * Database Entry Schema
+ * Represents a single record in the master database JSON file.
+ */
+export interface DbEntry {
+  id: string;           // Primary key - matches AI 'deliveryId' (e.g., "DLV-001", "INV-1234")
+  orderId: string;      // Secondary key - matches AI 'customerId' (e.g., "8971", "#12345")
+  customers: string;    // Official customer name - used for filename when verified
+  dateCreated?: string; // Optional creation date for reference
 }
 
-export type ProcessingStatus = 'idle' | 'converting' | 'analyzing' | 'splitting' | 'waiting_review' | 'done' | 'error';
+/**
+ * Document Segment with Verification
+ * Extended to include database verification results
+ */
+export interface DocumentSegment {
+  startPage: number;              // 1-based index
+  endPage: number;                // 1-based index
+  deliveryId: string;             // AI-extracted delivery/invoice ID
+  customerName: string;           // AI-extracted or DB-corrected customer name
+  customerId?: string;            // AI-extracted customer ID
+  deliveryDate: string;           // AI-extracted date
+  confidence: number;             // AI confidence score (0.0-1.0)
+  needsReview?: boolean;          // AI or verification flag for uncertainty
+  reviewReason?: string;          // Explanation for review flag
+  
+  // VERIFICATION FIELDS
+  verificationStatus?: VerificationStatus; // Database verification result
+  dbMatch?: DbEntry;              // Reference to matching DB record (if found)
+  
+  // FINAL OUTPUT
+  finalFilename?: string;         // The filename after manual review or auto-generation
+}
+
+export type ProcessingStatus = 
+  | 'idle' 
+  | 'converting' 
+  | 'analyzing' 
+  | 'splitting' 
+  | 'waiting_review' 
+  | 'done' 
+  | 'error';
 
 export interface ProcessedFile {
   id: string;
@@ -45,13 +74,15 @@ export interface GeminiResponseSchema {
   segments: DocumentSegment[];
 }
 
-// Item awaiting review
+/**
+ * Review Item - Document awaiting manual review
+ */
 export interface ReviewItem {
   id: string;
   originalFileId: string;
   originalFileName: string;
-  data: Uint8Array; // The PDF binary
-  filename: string; // The editable filename
-  segment: DocumentSegment;
-  timestamp: number; // Timestamp of the original file processing start
+  data: Uint8Array;               // The PDF binary
+  filename: string;               // The editable filename (without .pdf extension)
+  segment: DocumentSegment;       // Includes verification data
+  timestamp: number;
 }
