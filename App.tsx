@@ -15,7 +15,6 @@ import ProcessingQueue from './components/ProcessingQueue';
 import HistoryPanel from './components/HistoryPanel';
 import SettingsModal from './components/SettingsModal';
 import ReviewModal from './components/ReviewModal';
-import DatabaseCard from './components/DatabaseCard';
 import UploadCard from './components/UploadCard';
 import ActionCard from './components/ActionCard';
 import { 
@@ -27,7 +26,6 @@ import {
 const BATCH_LIMIT = 50;
 
 const App: React.FC = () => {
-  // --- State ---
   const [files, setFiles] = useState<ProcessedFile[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [database, setDatabase] = useState<DbEntry[]>([]);
@@ -37,11 +35,8 @@ const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showHistoryMobile, setShowHistoryMobile] = useState(false);
   
-  // Sticky Header State
-  const [showStickyHeader, setShowStickyHeader] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
   
-  // Manual Review State
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewQueue, setReviewQueue] = useState<ReviewItem[]>([]);
   const [reviewModalFilter, setReviewModalFilter] = useState<'all' | 'flagged'>('all');
@@ -54,18 +49,15 @@ const App: React.FC = () => {
     modelType: 'flash',
   });
 
-  // Derived Lists
   const pendingFiles = files.filter(f => ['idle', 'converting', 'analyzing', 'splitting'].includes(f.status));
   const waitingReviewFiles = files.filter(f => f.status === 'waiting_review');
   const completedFiles = files.filter(f => ['done', 'error'].includes(f.status));
 
-  // Refs for logic
   const zipRef = useRef<JSZip>(new JSZip());
   const processedInCurrentBatchRef = useRef(0);
   const folderContentMapRef = useRef<Map<string, Set<string>>>(new Map()); 
   const originalFilesBufferRef = useRef<Map<string, ArrayBuffer>>(new Map());
 
-  // --- Load History and Database on Mount ---
   useEffect(() => {
     const savedHistory = localStorage.getItem('splitter_history');
     if (savedHistory) {
@@ -78,26 +70,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // --- Sticky Header Observer ---
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setShowStickyHeader(!entry.isIntersecting && entry.boundingClientRect.top < 100);
-      },
-      {
-        threshold: 0,
-        rootMargin: '-64px 0px 0px 0px' 
-      }
-    );
-
-    if (heroRef.current) {
-      observer.observe(heroRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, []);
-
-  // --- Save History ---
   const addToHistory = (item: HistoryItem) => {
     setHistory(prev => {
       const newHistory = [...prev, item];
@@ -106,7 +78,6 @@ const App: React.FC = () => {
     });
   };
 
-  // --- Database Management ---
   const handleDatabaseUpdate = (newDb: DbEntry[]) => {
     setDatabase(newDb);
     localStorage.setItem('splitter_database', JSON.stringify(newDb));
@@ -117,7 +88,6 @@ const App: React.FC = () => {
     localStorage.removeItem('splitter_database');
   };
 
-  // --- File Upload Handler ---
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       const newFiles: ProcessedFile[] = Array.from(event.target.files).map((file: File) => {
@@ -149,7 +119,6 @@ const App: React.FC = () => {
     setFiles(prev => prev.filter(f => f.id !== id));
   };
 
-  // --- Processing Logic ---
   const processQueue = async () => {
     if (isProcessing) return;
 
@@ -199,7 +168,6 @@ const App: React.FC = () => {
                 segments: []
              });
           } else {
-              // VERIFY AGAINST DATABASE
               const verifiedSegments = segments.map(seg => verifyDocument(seg, database));
               
               setFiles(prev => prev.map(f => f.id === fileData.id ? { ...f, segments: verifiedSegments } : f));
@@ -210,7 +178,6 @@ const App: React.FC = () => {
               if (splitResults.length === 0) {
                   updateFileStatus(fileData.id, 'error', "Invalid page ranges or empty documents");
               } else {
-                  // Check for verification failures or low confidence
                   const needsForcedReview = verifiedSegments.some(s => 
                     s.needsReview || 
                     s.confidence < settings.minConfidence ||
@@ -560,12 +527,6 @@ const App: React.FC = () => {
             />
           </div>
 
-          <DatabaseCard 
-            database={database}
-            onUpdate={handleDatabaseUpdate}
-            onClear={handleDatabaseClear}
-          />
-
           <ProcessingQueue 
               files={pendingFiles} 
               title="Processing Queue" 
@@ -614,6 +575,9 @@ const App: React.FC = () => {
         onClose={() => setShowSettings(false)}
         settings={settings}
         onSave={setSettings}
+        database={database}
+        onDatabaseUpdate={handleDatabaseUpdate}
+        onDatabaseClear={handleDatabaseClear}
       />
 
       <ReviewModal 

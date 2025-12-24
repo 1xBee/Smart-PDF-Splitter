@@ -1,16 +1,60 @@
-import React from 'react';
-import { AppSettings, OutputMode, ModelType } from '../types';
-import { X, Calendar, Folder, Files, ShieldAlert, Brain, Zap, Sparkles } from 'lucide-react';
+import React, { useRef } from 'react';
+import { AppSettings, OutputMode, ModelType, DbEntry } from '../types';
+import { X, Calendar, Folder, Files, ShieldAlert, Brain, Zap, Sparkles, Database, Upload, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   settings: AppSettings;
   onSave: (settings: AppSettings) => void;
+  database: DbEntry[];
+  onDatabaseUpdate: (newDb: DbEntry[]) => void;
+  onDatabaseClear: () => void;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSave }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings, onSave, database, onDatabaseUpdate, onDatabaseClear }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   if (!isOpen) return null;
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target?.result as string);
+        
+        if (!Array.isArray(json)) {
+          alert('Invalid JSON format. Expected an array of records.');
+          return;
+        }
+        
+        const isValid = json.every(record => 
+          record.id && record.orderId && record.customers
+        );
+        
+        if (!isValid) {
+          alert('Invalid data structure. Each record must have: id, orderId, and customers fields.');
+          return;
+        }
+        
+        onDatabaseUpdate(json);
+        alert(`Successfully loaded ${json.length} records!`);
+      } catch (error: any) {
+        alert('Error parsing JSON file: ' + error.message);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  };
+
+  const handleClearDatabase = () => {
+    if (window.confirm('Are you sure you want to clear the entire database? This cannot be undone.')) {
+      onDatabaseClear();
+    }
+  };
 
   const handleModeChange = (mode: OutputMode) => {
     let newSettings = { ...settings, outputMode: mode };
@@ -50,6 +94,72 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, settings
         
         <div className="p-8 space-y-8 h-[60vh] overflow-y-auto custom-scrollbar">
           
+          {/* Section: Verification Database */}
+          <section>
+             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center">
+                <Database size={14} className="mr-1.5" /> Verification Database
+             </h3>
+             
+             <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                   <div>
+                      <div className="font-semibold text-slate-800 text-sm flex items-center">
+                         {database.length > 0 ? (
+                            <>
+                               <CheckCircle size={16} className="mr-2 text-emerald-600" />
+                               Database Active
+                            </>
+                         ) : (
+                            <>
+                               <AlertCircle size={16} className="mr-2 text-slate-400" />
+                               No Database Loaded
+                            </>
+                         )}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-1">
+                         {database.length > 0 
+                            ? `${database.length} records loaded`
+                            : 'Upload JSON to enable verification'
+                         }
+                      </div>
+                   </div>
+                   
+                   {database.length > 0 && (
+                      <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
+                         Active
+                      </span>
+                   )}
+                </div>
+                
+                <div className="flex space-x-2 mt-3">
+                   <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".json"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                   />
+                   <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1 flex items-center justify-center px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg font-medium transition-all active:scale-95"
+                   >
+                      <Upload size={14} className="mr-2" />
+                      {database.length > 0 ? 'Update' : 'Upload JSON'}
+                   </button>
+                   
+                   {database.length > 0 && (
+                      <button
+                         onClick={handleClearDatabase}
+                         className="px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition-all active:scale-95 flex items-center text-sm"
+                         title="Clear database"
+                      >
+                         <Trash2 size={14} />
+                      </button>
+                   )}
+                </div>
+             </div>
+          </section>
+
           {/* Section: AI Model */}
           <section>
              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center">
